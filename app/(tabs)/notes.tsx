@@ -1,24 +1,23 @@
-import PostFormModal from '@/components/PostFormModal';
-import PostItem from '@/components/PostItem';
+import NoteFormModal from '@/components/NoteFormModal';
+import NoteItem from '@/components/NoteItem';
 import CustomAlert from '@/components/ui/CustomAlert';
 import ThemedButton from '@/components/ui/ThemedButton';
 import ThemedText from '@/components/ui/ThemedText';
 import ThemedView from '@/components/ui/ThemedView';
 import { Colors } from '@/constants/Colors';
-import { CURRENT_USER } from '@/constants/User';
-import { deletePost, getPosts, savePost } from '@/services/storage';
-import { AlertConfig, Post } from '@/types';
+import { deleteNote, getNotes, saveNote } from '@/services/storage';
+import { AlertConfig, Note } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, useColorScheme, View } from 'react-native';
 
-const PostsScreen = () => {
+const NotesScreen = () => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
   const queryClient = useQueryClient();
   const [isModalVisible, setModalVisible] = useState(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const [alertVisible, setAlertVisible] = useState(false);
@@ -29,33 +28,33 @@ const PostsScreen = () => {
   });
 
   const {
-    data: posts,
+    data: notes,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['posts'],
-    queryFn: getPosts,
+    queryKey: ['notes'],
+    queryFn: getNotes,
   });
 
-  const deletedMutation = useMutation({
-    mutationFn: deletePost,
+  const deleteMutation = useMutation({
+    mutationFn: deleteNote,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: savePost,
+    mutationFn: saveNote,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
       setModalVisible(false);
-      setEditingPost(null);
+      setEditingNote(null);
     },
   });
 
-  const hendleDeletePost = (id: string) => {
+  const handleDeleteNote = (id: string) => {
     setAlertConfig({
-      title: 'Видалити пост?',
+      title: 'Видалити нотатку?',
       message: 'Цю дію неможливо скасувати.',
       buttons: [
         {
@@ -67,7 +66,7 @@ const PostsScreen = () => {
           text: 'Видалити',
           style: 'destructive',
           onPress: () => {
-            deletedMutation.mutate(id);
+            deleteMutation.mutate(id);
             setAlertVisible(false);
           },
         },
@@ -77,28 +76,27 @@ const PostsScreen = () => {
   };
 
   const handleCreate = () => {
-    setEditingPost(null);
+    setEditingNote(null);
     setModalVisible(true);
   };
 
-  const handleEditPost = (post: Post) => {
-    setEditingPost(post);
+  const handleEditNote = (note: Note) => {
+    setEditingNote(note);
     setModalVisible(true);
   };
 
-  const handleSave = (data: { content: string }) => {
-    const newPost: Post = {
-      id: editingPost ? editingPost.id : Date.now().toString(),
+  const handleSave = (data: { title: string; content: string }) => {
+    const newNote: Note = {
+      id: editingNote ? editingNote.id : Date.now().toString(),
+      title: data.title,
       content: data.content,
-      createdAt: editingPost ? editingPost.createdAt : new Date().toISOString(),
+      createdAt: editingNote ? editingNote.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      userId: CURRENT_USER.id,
-      username: CURRENT_USER.username,
     };
-    saveMutation.mutate(newPost);
+    saveMutation.mutate(newNote);
   };
 
-  const sortedPosts = [...(posts || [])].sort((a, b) => {
+  const sortedNotes = [...(notes || [])].sort((a, b) => {
     const dateA = new Date(a.createdAt).getTime();
     const dateB = new Date(b.createdAt).getTime();
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
@@ -124,7 +122,7 @@ const PostsScreen = () => {
         </ThemedText>
         <ThemedButton
           title="Спробувати ще раз"
-          onPress={() => queryClient.invalidateQueries({ queryKey: ['posts'] })}
+          onPress={() => queryClient.invalidateQueries({ queryKey: ['notes'] })}
         />
       </ThemedView>
     );
@@ -141,15 +139,15 @@ const PostsScreen = () => {
         />
       </View>
       <FlatList
-        data={sortedPosts}
+        data={sortedNotes}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <PostItem post={item} onDelete={hendleDeletePost} onEdit={handleEditPost} />
+          <NoteItem note={item} onDelete={handleDeleteNote} onEdit={handleEditNote} />
         )}
         contentContainerStyle={[styles.listContent, { marginTop: 8, marginBottom: 32 }]}
         ListEmptyComponent={
           <ThemedView style={styles.center}>
-            <ThemedText>Немає постів. Створи перший!</ThemedText>
+            <ThemedText>Немає нотаток. Створи першу!</ThemedText>
           </ThemedView>
         }
       />
@@ -158,11 +156,11 @@ const PostsScreen = () => {
         <ThemedButton icon="add" iconSize={32} onPress={handleCreate} style={styles.fab} />
       </View>
 
-      <PostFormModal
+      <NoteFormModal
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
         onSubmit={handleSave}
-        initialData={editingPost}
+        initialData={editingNote}
         isLoading={saveMutation.isPending}
       />
 
@@ -217,4 +215,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostsScreen;
+export default NotesScreen;

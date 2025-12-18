@@ -1,35 +1,33 @@
+import { TABS_CONFIG } from '@/constants/Tabs';
 import { Tabs } from 'expo-router';
-import React from 'react';
+import { useColorScheme } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import CustomHeader from '@/components/ui/CustomHeader';
+import CustomTabBar from '@/components/ui/CustomTabBar';
 
-export default function TabLayout() {
+const TabLayout = () => {
   const colorScheme = useColorScheme();
 
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} colorScheme={colorScheme ?? 'light'} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+        header: ({ route, options }) => (
+          <CustomHeader title={options.title || route.name} colorScheme={colorScheme ?? 'light'} />
+        ),
+      }}
+    >
+      {TABS_CONFIG.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+          }}
+        />
+      ))}
     </Tabs>
   );
-}
+};
+
+export default TabLayout;
