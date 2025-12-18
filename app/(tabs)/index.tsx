@@ -4,93 +4,57 @@ import CustomAlert from '@/components/ui/CustomAlert';
 import ThemedButton from '@/components/ui/ThemedButton';
 import ThemedText from '@/components/ui/ThemedText';
 import ThemedView from '@/components/ui/ThemedView';
-import { Colors } from '@/constants/Colors';
 import { CURRENT_USER } from '@/constants/User';
-import { deletePost, getPosts, savePost } from '@/services/storage';
-import { AlertConfig, Post } from '@/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, useColorScheme, View } from 'react-native';
+import { useAlert } from '@/hooks/useAlert';
+import { useModalForm } from '@/hooks/useModalForm';
+import { usePostsData } from '@/hooks/usePostsData';
+import { useSortOrder } from '@/hooks/useSortOrder';
+import { useTheme } from '@/hooks/useTheme';
+import { Post } from '@/types';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 const PostsScreen = () => {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-
-  const queryClient = useQueryClient();
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState<AlertConfig>({
-    title: '',
-    message: '',
-    buttons: [],
-  });
-
-  const {
-    data: posts,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['posts'],
-    queryFn: getPosts,
-  });
-
-  const deletedMutation = useMutation({
-    mutationFn: deletePost,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    },
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: savePost,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-      setModalVisible(false);
-      setEditingPost(null);
-    },
-  });
+  const theme = useTheme();
+  const modal = useModalForm<Post>();
+  const alert = useAlert();
+  const { sortOrder, toggleSortOrder } = useSortOrder();
+  const { data: posts, isLoading, error, saveMutation, deleteMutation } = usePostsData();
 
   const hendleDeletePost = (id: string) => {
-    setAlertConfig({
+    alert.open({
       title: 'Видалити пост?',
       message: 'Цю дію неможливо скасувати.',
       buttons: [
         {
           text: 'Скасувати',
           style: 'cancel',
-          onPress: () => setAlertVisible(false),
+          onPress: () => alert.close(),
         },
         {
           text: 'Видалити',
           style: 'destructive',
           onPress: () => {
-            deletedMutation.mutate(id);
-            setAlertVisible(false);
+            deleteMutation.mutate(id);
+            alert.close();
           },
         },
       ],
     });
-    setAlertVisible(true);
   };
 
   const handleCreate = () => {
-    setEditingPost(null);
-    setModalVisible(true);
+    modal.open();
   };
 
   const handleEditPost = (post: Post) => {
-    setEditingPost(post);
-    setModalVisible(true);
+    modal.open(post);
   };
 
   const handleSave = (data: { content: string }) => {
     const newPost: Post = {
-      id: editingPost ? editingPost.id : Date.now().toString(),
+      id: modal.editing ? modal.editing.id : Date.now().toString(),
       content: data.content,
-      createdAt: editingPost ? editingPost.createdAt : new Date().toISOString(),
+      createdAt: modal.editing ? modal.editing.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       userId: CURRENT_USER.id,
       username: CURRENT_USER.username,
@@ -103,10 +67,6 @@ const PostsScreen = () => {
     const dateB = new Date(b.createdAt).getTime();
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
   });
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
-  };
 
   if (isLoading) {
     return (
@@ -122,10 +82,7 @@ const PostsScreen = () => {
         <ThemedText style={{ color: theme.danger, marginBottom: 10 }}>
           Помилка: {error.message}
         </ThemedText>
-        <ThemedButton
-          title="Спробувати ще раз"
-          onPress={() => queryClient.invalidateQueries({ queryKey: ['posts'] })}
-        />
+        <ThemedButton title="Спробувати ще раз" onPress={() => saveMutation.reset()} />
       </ThemedView>
     );
   }
@@ -159,19 +116,19 @@ const PostsScreen = () => {
       </View>
 
       <PostFormModal
-        visible={isModalVisible}
-        onClose={() => setModalVisible(false)}
+        visible={modal.isVisible}
+        onClose={modal.close}
         onSubmit={handleSave}
-        initialData={editingPost}
+        initialData={modal.editing}
         isLoading={saveMutation.isPending}
       />
 
       <CustomAlert
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        buttons={alertConfig.buttons}
-        onClose={() => setAlertVisible(false)}
+        visible={alert.visible}
+        title={alert.config.title}
+        message={alert.config.message}
+        buttons={alert.config.buttons}
+        onClose={alert.close}
       />
     </ThemedView>
   );
