@@ -4,93 +4,57 @@ import CustomAlert from '@/components/ui/CustomAlert';
 import ThemedButton from '@/components/ui/ThemedButton';
 import ThemedText from '@/components/ui/ThemedText';
 import ThemedView from '@/components/ui/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { deleteNote, getNotes, saveNote } from '@/services/storage';
-import { AlertConfig, Note } from '@/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, useColorScheme, View } from 'react-native';
+import { useAlert } from '@/hooks/useAlert';
+import { useModalForm } from '@/hooks/useModalForm';
+import { useNotesData } from '@/hooks/useNotesData';
+import { useSortOrder } from '@/hooks/useSortOrder';
+import { useTheme } from '@/hooks/useTheme';
+import { Note } from '@/types';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 const NotesScreen = () => {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-
-  const queryClient = useQueryClient();
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState<AlertConfig>({
-    title: '',
-    message: '',
-    buttons: [],
-  });
-
-  const {
-    data: notes,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['notes'],
-    queryFn: getNotes,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteNote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-    },
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: saveNote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      setModalVisible(false);
-      setEditingNote(null);
-    },
-  });
+  const theme = useTheme();
+  const modal = useModalForm<Note>();
+  const alert = useAlert();
+  const { sortOrder, toggleSortOrder } = useSortOrder();
+  const { data: notes, isLoading, error, saveMutation, deleteMutation } = useNotesData();
 
   const handleDeleteNote = (id: string) => {
-    setAlertConfig({
+    alert.open({
       title: 'Видалити нотатку?',
       message: 'Цю дію неможливо скасувати.',
       buttons: [
         {
           text: 'Скасувати',
           style: 'cancel',
-          onPress: () => setAlertVisible(false),
+          onPress: () => alert.close(),
         },
         {
           text: 'Видалити',
           style: 'destructive',
           onPress: () => {
             deleteMutation.mutate(id);
-            setAlertVisible(false);
+            alert.close();
           },
         },
       ],
     });
-    setAlertVisible(true);
   };
 
   const handleCreate = () => {
-    setEditingNote(null);
-    setModalVisible(true);
+    modal.open();
   };
 
   const handleEditNote = (note: Note) => {
-    setEditingNote(note);
-    setModalVisible(true);
+    modal.open(note);
   };
 
   const handleSave = (data: { title: string; content: string }) => {
     const newNote: Note = {
-      id: editingNote ? editingNote.id : Date.now().toString(),
+      id: modal.editing ? modal.editing.id : Date.now().toString(),
       title: data.title,
       content: data.content,
-      createdAt: editingNote ? editingNote.createdAt : new Date().toISOString(),
+      createdAt: modal.editing ? modal.editing.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     saveMutation.mutate(newNote);
@@ -101,10 +65,6 @@ const NotesScreen = () => {
     const dateB = new Date(b.createdAt).getTime();
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
   });
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
-  };
 
   if (isLoading) {
     return (
@@ -120,10 +80,7 @@ const NotesScreen = () => {
         <ThemedText style={{ color: theme.danger, marginBottom: 10 }}>
           Помилка: {error.message}
         </ThemedText>
-        <ThemedButton
-          title="Спробувати ще раз"
-          onPress={() => queryClient.invalidateQueries({ queryKey: ['notes'] })}
-        />
+        <ThemedButton title="Спробувати ще раз" onPress={() => saveMutation.reset()} />
       </ThemedView>
     );
   }
@@ -157,19 +114,19 @@ const NotesScreen = () => {
       </View>
 
       <NoteFormModal
-        visible={isModalVisible}
-        onClose={() => setModalVisible(false)}
+        visible={modal.isVisible}
+        onClose={modal.close}
         onSubmit={handleSave}
-        initialData={editingNote}
+        initialData={modal.editing}
         isLoading={saveMutation.isPending}
       />
 
       <CustomAlert
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        buttons={alertConfig.buttons}
-        onClose={() => setAlertVisible(false)}
+        visible={alert.visible}
+        title={alert.config.title}
+        message={alert.config.message}
+        buttons={alert.config.buttons}
+        onClose={alert.close}
       />
     </ThemedView>
   );
